@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Stock Agent — Arquitectura</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;600;700&display=swap');
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #050608;
+    font-family: 'IBM Plex Mono', monospace;
+    color: #c9d1d9;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 40px 20px;
+  }
+
+  /* ── Header ── */
+  .title-block {
+    text-align: center;
+    margin-bottom: 48px;
+  }
+  .title-block h1 {
+    font-size: 28px; font-weight: 700; letter-spacing: 6px;
+    color: #e6edf3;
+  }
+  .title-block h1 span { color: #00d4ff; }
+  .subtitle {
+    margin-top: 8px; font-size: 12px; color: #484f58; letter-spacing: 3px;
+  }
+  .badge {
+    display: inline-block; margin-top: 14px;
+    background: #0d1117; border: 1px solid #30363d;
+    color: #00d4ff; font-size: 11px; padding: 4px 14px; border-radius: 20px;
+    letter-spacing: 2px;
+  }
+
+  /* ── Main diagram container ── */
+  .diagram {
+    width: 100%; max-width: 900px;
+    position: relative;
+  }
+
+  /* ── Row of blocks ── */
+  .row {
+    display: flex;
+    justify-content: center;
+    gap: 16px;
+    position: relative;
+    z-index: 2;
+  }
+  .row + .row { margin-top: 0; }
+
+  /* ── Connector lines ── */
+  .connector {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 48px;
+    position: relative;
+    z-index: 1;
+  }
+  .connector .line {
+    width: 2px; height: 100%;
+    background: linear-gradient(to bottom, #1c2a3a, #00d4ff66, #1c2a3a);
+    position: relative;
+  }
+  .connector .arrow {
+    position: absolute; bottom: -6px; left: 50%; transform: translateX(-50%);
+    width: 0; height: 0;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-top: 8px solid #00d4ff88;
+  }
+  .connector .label {
+    position: absolute; left: calc(50% + 10px);
+    font-size: 9px; color: #484f58; letter-spacing: 2px; white-space: nowrap;
+  }
+
+  /* ── Multi-connector (fan) ── */
+  .fan-connector {
+    display: flex;
+    justify-content: center;
+    height: 56px;
+    position: relative;
+    z-index: 1;
+    margin: 0;
+  }
+  .fan-connector svg { width: 100%; height: 100%; overflow: visible; }
+
+  /* ── Block card ── */
+  .block {
+    border-radius: 10px;
+    padding: 18px 20px;
+    position: relative;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    cursor: default;
+  }
+  .block:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 32px #00d4ff18;
+  }
+  .block.primary {
+    background: linear-gradient(135deg, #0d1f2d, #0a1520);
+    border: 1px solid #00d4ff55;
+    box-shadow: 0 0 24px #00d4ff0d, inset 0 1px 0 #00d4ff22;
+  }
+  .block.secondary {
+    background: #0d1117;
+    border: 1px solid #1c2128;
+  }
+  .block.accent {
+    background: linear-gradient(135deg, #0d1f15, #0a1510);
+    border: 1px solid #3a7a3a88;
+  }
+  .block.warning {
+    background: linear-gradient(135deg, #1f1a0d, #15120a);
+    border: 1px solid #7a6a3a88;
+  }
+  .block.output {
+    background: linear-gradient(135deg, #1a0d1f, #12091a);
+    border: 1px solid #7a3a9a88;
+  }
+
+  .block-icon { font-size: 22px; margin-bottom: 8px; }
+  .block-tag {
+    font-size: 9px; letter-spacing: 3px; color: #484f58;
+    margin-bottom: 4px;
+  }
+  .block-title {
+    font-size: 14px; font-weight: 700; color: #e6edf3;
+    margin-bottom: 6px;
+  }
+  .block-desc {
+    font-size: 10px; color: #666; line-height: 1.6;
+  }
+  .block-badge {
+    display: inline-block; margin-top: 8px;
+    font-size: 9px; padding: 2px 8px; border-radius: 10px;
+    font-weight: 600; letter-spacing: 1px;
+  }
+  .bb-blue  { background: #00d4ff18; color: #00d4ff; border: 1px solid #00d4ff44; }
+  .bb-green { background: #7fff6e18; color: #7fff6e; border: 1px solid #7fff6e44; }
+  .bb-gold  { background: #ffa65718; color: #ffa657; border: 1px solid #ffa65744; }
+  .bb-purple{ background: #c084fc18; color: #c084fc; border: 1px solid #c084fc44; }
+
+  .block-width-lg { width: 280px; }
+  .block-width-md { width: 200px; }
+  .block-width-sm { width: 160px; }
+
+  /* ── Section label ── */
+  .section-label {
+    text-align: center; font-size: 9px; color: #484f58;
+    letter-spacing: 4px; margin: 32px 0 18px;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .section-label::before, .section-label::after {
+    content: ''; flex: 1; height: 1px;
+    background: linear-gradient(to right, transparent, #1c2128);
+  }
+  .section-label::after {
+    background: linear-gradient(to left, transparent, #1c2128);
+  }
+
+  /* ── Horizontal connectors ── */
+  .h-connector {
+    display: flex; align-items: center; gap: 0;
+    position: relative; height: 2px; flex: 1; margin: 0 -1px;
+  }
+  .h-line {
+    flex: 1; height: 2px;
+    background: linear-gradient(to right, #1c2128, #00d4ff33, #1c2128);
+  }
+
+  /* ── Data grid ── */
+  .data-grid {
+    display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px;
+    max-width: 900px; width: 100%;
+    margin-top: 0;
+  }
+  .data-chip {
+    background: #0d1117; border: 1px solid #1c2128;
+    border-radius: 8px; padding: 10px 8px; text-align: center;
+  }
+  .data-chip .chip-icon { font-size: 16px; margin-bottom: 4px; }
+  .data-chip .chip-sym { font-size: 10px; font-weight: 700; color: #c9d1d9; }
+  .data-chip .chip-cat { font-size: 9px; color: #484f58; margin-top: 2px; }
+
+  /* ── Output row ── */
+  .output-row {
+    display: flex; gap: 12px; justify-content: center;
+  }
+
+  /* ── Legend ── */
+  .legend {
+    display: flex; gap: 20px; flex-wrap: wrap; justify-content: center;
+    margin-top: 36px; padding-top: 24px;
+    border-top: 1px solid #1c2128;
+    max-width: 900px; width: 100%;
+  }
+  .legend-item {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 10px; color: #484f58;
+  }
+  .legend-dot {
+    width: 10px; height: 10px; border-radius: 2px;
+  }
+
+  /* ── Stats bar ── */
+  .stats-bar {
+    display: flex; gap: 24px; justify-content: center; flex-wrap: wrap;
+    max-width: 900px; width: 100%;
+    padding: 16px 20px;
+    background: #0d1117;
+    border: 1px solid #1c2128;
+    border-radius: 10px;
+    margin-bottom: 40px;
+  }
+  .stat { text-align: center; }
+  .stat-val { font-size: 20px; font-weight: 700; color: #00d4ff; }
+  .stat-lbl { font-size: 9px; color: #484f58; letter-spacing: 2px; margin-top: 3px; }
+
+  /* ── Files row ── */
+  .files-row {
+    display: flex; gap: 12px; justify-content: center;
+  }
+  .file-chip {
+    background: #0d1117; border: 1px solid #1c2128;
+    border-radius: 8px; padding: 10px 16px;
+    text-align: center; min-width: 140px;
+  }
+  .file-name { font-size: 12px; font-weight: 700; color: #e6edf3; }
+  .file-desc { font-size: 9px; color: #484f58; margin-top: 3px; }
+</style>
+</head>
+<body>
+
+<!-- ── TITLE ── -->
+<div class="title-block">
+  <h1>📡 STOCK <span>AGENT</span></h1>
+  <div class="subtitle">DIAGRAMA DE ARQUITECTURA · PYTHON</div>
+  <div class="badge">LIMA, PERÚ · 20 UPDATES/DÍA</div>
+</div>
+
+<!-- ── STATS ── -->
+<div class="stats-bar">
+  <div class="stat"><div class="stat-val">10</div><div class="stat-lbl">ACTIVOS</div></div>
+  <div class="stat"><div class="stat-val">20</div><div class="stat-lbl">UPDATES/DÍA</div></div>
+  <div class="stat"><div class="stat-val">~72</div><div class="stat-lbl">MIN INTERVALO</div></div>
+  <div class="stat"><div class="stat-val">3</div><div class="stat-lbl">ARCHIVOS .PY</div></div>
+  <div class="stat"><div class="stat-val">3</div><div class="stat-lbl">LIBRERÍAS</div></div>
+</div>
+
+<div class="diagram">
+
+  <!-- ── LAYER 1: SCHEDULER ── -->
+  <div class="section-label">CAPA 1 — ORCHESTRACIÓN</div>
+  <div class="row">
+    <div class="block primary block-width-lg">
+      <div class="block-icon">⏰</div>
+      <div class="block-tag">SCHEDULER</div>
+      <div class="block-title">schedule (Python)</div>
+      <div class="block-desc">Dispara run_update() en 20 horarios fijos distribuidos entre las 6:00 y 22:48 h. Corre en bucle infinito con time.sleep(30).</div>
+      <span class="block-badge bb-blue">stock_agent.py</span>
+    </div>
+  </div>
+
+  <!-- connector 1→2 -->
+  <div class="connector">
+    <div class="line"><div class="arrow"></div><div class="label">run_update()</div></div>
+  </div>
+
+  <!-- ── LAYER 2: DATA FETCH ── -->
+  <div class="section-label">CAPA 2 — OBTENCIÓN DE DATOS</div>
+  <div class="row">
+    <div class="block secondary block-width-lg">
+      <div class="block-icon">📡</div>
+      <div class="block-tag">DATA FETCHER</div>
+      <div class="block-title">fetch_market_data()</div>
+      <div class="block-desc">Llama a yfinance.Tickers() con los 10 símbolos. Extrae precio, variación $ y % de Yahoo Finance en tiempo real.</div>
+      <span class="block-badge bb-blue">yfinance</span>
+    </div>
+  </div>
+
+  <!-- DATA CHIPS -->
+  <div style="height:28px;display:flex;align-items:center;justify-content:center">
+    <div style="width:2px;height:100%;background:linear-gradient(to bottom,#00d4ff44,transparent)"></div>
+  </div>
+
+  <div class="data-grid">
+    <div class="data-chip"><div class="chip-icon">📈</div><div class="chip-sym">^DJI</div><div class="chip-cat">Dow Jones</div></div>
+    <div class="data-chip"><div class="chip-icon">📊</div><div class="chip-sym">^GSPC</div><div class="chip-cat">S&P 500</div></div>
+    <div class="data-chip"><div class="chip-icon">🤖</div><div class="chip-sym">NVDA</div><div class="chip-cat">NVIDIA</div></div>
+    <div class="data-chip"><div class="chip-icon">🪟</div><div class="chip-sym">MSFT</div><div class="chip-cat">Microsoft</div></div>
+    <div class="data-chip"><div class="chip-icon">🔍</div><div class="chip-sym">GOOGL</div><div class="chip-cat">Alphabet</div></div>
+    <div class="data-chip"><div class="chip-icon">🌐</div><div class="chip-sym">META</div><div class="chip-cat">Meta</div></div>
+    <div class="data-chip"><div class="chip-icon">📦</div><div class="chip-sym">AMZN</div><div class="chip-cat">Amazon</div></div>
+    <div class="data-chip"><div class="chip-icon">⚡</div><div class="chip-sym">TSLA</div><div class="chip-cat">Tesla</div></div>
+    <div class="data-chip"><div class="chip-icon">🍎</div><div class="chip-sym">AAPL</div><div class="chip-cat">Apple</div></div>
+    <div class="data-chip"><div class="chip-icon">💻</div><div class="chip-sym">AMD</div><div class="chip-cat">AMD</div></div>
+  </div>
+
+  <!-- connector 2→3 -->
+  <div class="connector" style="margin-top:8px">
+    <div class="line"><div class="arrow"></div><div class="label">dict con precios</div></div>
+  </div>
+
+  <!-- ── LAYER 3: AI ANALYSIS ── -->
+  <div class="section-label">CAPA 3 — ANÁLISIS CON IA</div>
+  <div class="row">
+    <div class="block accent block-width-lg">
+      <div class="block-icon">🧠</div>
+      <div class="block-tag">AI ANALYSIS</div>
+      <div class="block-title">generate_ai_analysis()</div>
+      <div class="block-desc">Envía los datos a Claude (claude-opus-4-5) vía Anthropic API. Retorna análisis ejecutivo en español: tendencia, destacados y micro-recomendación.</div>
+      <span class="block-badge bb-green">anthropic SDK</span>
+      <span class="block-badge bb-green" style="margin-left:6px">Claude</span>
+    </div>
+  </div>
+
+  <!-- connector 3→4 -->
+  <div class="connector">
+    <div class="line"><div class="arrow"></div><div class="label">análisis en texto</div></div>
+  </div>
+
+  <!-- ── LAYER 4: BUILD EMAIL ── -->
+  <div class="section-label">CAPA 4 — CONSTRUCCIÓN DEL EMAIL</div>
+  <div class="row">
+    <div class="block warning block-width-lg">
+      <div class="block-icon">🏗️</div>
+      <div class="block-tag">EMAIL BUILDER</div>
+      <div class="block-title">build_email_html()</div>
+      <div class="block-desc">Combina datos de mercado + análisis IA en una plantilla HTML dark-mode con tablas de índices, AI stocks, sección de análisis y footer.</div>
+      <span class="block-badge bb-gold">HTML + Plain text</span>
+    </div>
+  </div>
+
+  <!-- connector 4→5 -->
+  <div class="connector">
+    <div class="line"><div class="arrow"></div><div class="label">MIMEMultipart</div></div>
+  </div>
+
+  <!-- ── LAYER 5: SEND + LOG ── -->
+  <div class="section-label">CAPA 5 — SALIDAS</div>
+  <div class="output-row">
+    <div class="block output block-width-md">
+      <div class="block-icon">📧</div>
+      <div class="block-tag">EMAIL SENDER</div>
+      <div class="block-title">send_email()</div>
+      <div class="block-desc">Envía vía smtplib SSL a Gmail / Outlook. Autenticación con App Password.</div>
+      <span class="block-badge bb-purple">smtplib</span>
+    </div>
+    <div class="block secondary block-width-md">
+      <div class="block-icon">📋</div>
+      <div class="block-tag">LOGGER</div>
+      <div class="block-title">stock_agent.log</div>
+      <div class="block-desc">Registra cada actualización, precios y estado en archivo de log + consola.</div>
+      <span class="block-badge bb-blue">logging</span>
+    </div>
+  </div>
+
+  <!-- ── FILES ── -->
+  <div class="section-label">ARCHIVOS DEL PROYECTO</div>
+  <div class="files-row">
+    <div class="file-chip">
+      <div class="file-name">stock_agent.py</div>
+      <div class="file-desc">Lógica principal del agente</div>
+    </div>
+    <div class="file-chip">
+      <div class="file-name">config.py</div>
+      <div class="file-desc">Keys y credenciales</div>
+    </div>
+    <div class="file-chip">
+      <div class="file-name">requirements.txt</div>
+      <div class="file-desc">Dependencias pip</div>
+    </div>
+    <div class="file-chip">
+      <div class="file-name">stock_agent.log</div>
+      <div class="file-desc">Registro de actividad</div>
+    </div>
+  </div>
+
+  <!-- ── LEGEND ── -->
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot" style="background:#00d4ff44;border:1px solid #00d4ff66"></div>Orchestración / Core</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#1c2128;border:1px solid #30363d"></div>Data / Fetch</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#0d1f1588;border:1px solid #3a7a3a88"></div>IA / Análisis</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#1f1a0d88;border:1px solid #7a6a3a88"></div>Construcción</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#1a0d1f88;border:1px solid #7a3a9a88"></div>Salida / Output</div>
+  </div>
+
+</div><!-- /diagram -->
+
+</body>
+</html>
