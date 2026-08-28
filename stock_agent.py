@@ -3,6 +3,7 @@
 Stock Agent — Yahoo Finance + Noticias RSS
 DOW · S&P500 · Top AI Stocks  |  20x al dia
 Noticias: Yahoo Finance News + Reuters RSS + MarketWatch RSS (sin API key)
+Envio: multiples correos destino
 """
 
 import yfinance as yf
@@ -66,6 +67,14 @@ RSS_POR_SIMBOLO = {
 
 update_count = 0
 
+# ─── Helpers ─────────────────────────────────────────────────────────────────
+def get_recipients() -> list:
+    """Retorna lista de correos destino (acepta string o lista en config)."""
+    to = CONFIG.get("EMAIL_TO", [])
+    if isinstance(to, str):
+        return [to]
+    return list(to)
+
 # ─── 1. FETCH DE DATOS DE MERCADO ────────────────────────────────────────────
 def fetch_market_data() -> dict:
     log.info("[FETCH] Consultando Yahoo Finance...")
@@ -100,7 +109,6 @@ def fetch_market_data() -> dict:
 
 # ─── 2. FETCH DE NOTICIAS RSS ────────────────────────────────────────────────
 def fetch_rss(url: str, max_items: int = 3) -> list:
-    """Obtiene titulares de un feed RSS sin API key."""
     try:
         req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
         with urllib.request.urlopen(req, timeout=8) as resp:
@@ -118,11 +126,9 @@ def fetch_rss(url: str, max_items: int = 3) -> list:
         return []
 
 def fetch_all_news() -> dict:
-    """Obtiene noticias generales + por simbolo."""
     log.info("[NEWS] Obteniendo noticias de mercado...")
     news = {"general": [], "por_simbolo": {}}
 
-    # Noticias generales (Reuters + MarketWatch + Yahoo)
     for source_name, url in RSS_MARKET_GENERAL:
         items = fetch_rss(url, max_items=2)
         for item in items:
@@ -131,7 +137,6 @@ def fetch_all_news() -> dict:
         if items:
             log.info(f"  [NEWS] {source_name}: {len(items)} noticias")
 
-    # Noticias por simbolo (Yahoo Finance RSS)
     ai_symbols = [s for s in SYMBOLS if SYMBOLS[s]["category"] == "ai"]
     for symbol in ai_symbols:
         url = RSS_POR_SIMBOLO.get(symbol)
@@ -143,18 +148,15 @@ def fetch_all_news() -> dict:
 
     return news
 
-# ─── 3. ANALISIS IA con Groq (GRATIS) ───────────────────────────────────────
+# ─── 3. ANALISIS IA con Groq ─────────────────────────────────────────────────
 def generate_ai_analysis(data: dict, news: dict) -> str:
     if not CONFIG.get("GROQ_API_KEY"):
         return "Analisis IA no configurado. Agrega GROQ_API_KEY en config.py"
 
-    # Resumen de precios
     price_summary = [
         f"{v['name']}: ${v['price']:,.2f} ({'+' if v['change_pct']>=0 else ''}{v['change_pct']}%)"
         for v in data.values()
     ]
-
-    # Resumen de noticias para el prompt
     news_lines = []
     for item in news["general"][:4]:
         news_lines.append(f"- [{item['source']}] {item['title']}")
@@ -173,7 +175,7 @@ NOTICIAS RECIENTES:
 Redacta un analisis ejecutivo conciso en espanol (max. 4 parrafos) para un inversor en Lima, Peru.
 Incluye:
 1. Tendencia general del mercado considerando las noticias
-2. El activo con mejor y peor desempeno y por que (basate en noticias si las hay)
+2. El activo con mejor y peor desempeno y por que
 3. Sector IA: estado general
 4. Una micro-recomendacion de vigilancia para las proximas horas
 
@@ -203,7 +205,6 @@ def build_email_html(data: dict, analysis: str, news: dict, update_num: int) -> 
     def text_color(flag):
         return "#7fff6e" if flag == "positive" else "#ff6b6b"
 
-    # Tabla indices
     index_rows = ""
     for sym, v in indices.items():
         c = text_color(v["color_flag"])
@@ -219,12 +220,10 @@ def build_email_html(data: dict, analysis: str, news: dict, update_num: int) -> 
               <span style="font-size:12px">{signo}{v['change_pct']}%</span></td>
         </tr>"""
 
-    # Tabla AI stocks
     ai_rows = ""
     for sym, v in ai_stocks.items():
         c = text_color(v["color_flag"])
         signo = "+" if v["change_pct"] >= 0 else ""
-        # Noticias del simbolo (1 titular)
         noticia_sym = ""
         if sym in news["por_simbolo"] and news["por_simbolo"][sym]:
             n = news["por_simbolo"][sym][0]
@@ -238,7 +237,6 @@ def build_email_html(data: dict, analysis: str, news: dict, update_num: int) -> 
               {v['direction']} {signo}{v['change_pct']}%</td>
         </tr>"""
 
-    # Seccion noticias generales
     noticias_html = ""
     if news["general"]:
         for item in news["general"][:5]:
@@ -288,17 +286,17 @@ def build_email_html(data: dict, analysis: str, news: dict, update_num: int) -> 
 
   <!-- Analisis IA -->
   <div style="border:1px solid #30363d;border-top:none;background:#0a0d0a;padding:20px">
-    <div style="font-size:10px;color:#00d4ff;letter-spacing:3px;margin-bottom:12px">ANALISIS IA (Groq + LLaMA)</div>
+    <div style="font-size:10px;color:#00d4ff;letter-spacing:3px;margin-bottom:12px">ANALISIS IA (Groq)</div>
     <div style="font-size:13px;color:#9a9a9a;line-height:1.8">{analysis_html}</div>
   </div>
 
-  <!-- Noticias Generales -->
+  <!-- Noticias -->
   <div style="border:1px solid #30363d;border-top:none;background:#080a08">
     <div style="background:#0d1117;padding:10px 16px;border-bottom:1px solid #30363d">
       <span style="font-size:10px;color:#555;letter-spacing:3px">NOTICIAS DE MERCADO</span>
       <span style="font-size:9px;color:#333;margin-left:8px">Reuters &middot; MarketWatch &middot; Yahoo Finance</span>
     </div>
-    <table width="100%" style="border-collapse:collapse">{noticias_html if noticias_html else '<tr><td style="padding:12px 16px;color:#444;font-size:12px">Sin noticias disponibles en este momento.</td></tr>'}</table>
+    <table width="100%" style="border-collapse:collapse">{noticias_html if noticias_html else '<tr><td style="padding:12px 16px;color:#444;font-size:12px">Sin noticias disponibles.</td></tr>'}</table>
   </div>
 
   <!-- Footer -->
@@ -310,7 +308,6 @@ def build_email_html(data: dict, analysis: str, news: dict, update_num: int) -> 
 
 </div></body></html>"""
 
-    # Texto plano
     plain = f"STOCK AGENT — Update #{update_num} — {now}\n{'='*50}\n"
     for sym, v in data.items():
         signo = "+" if v["change_pct"] >= 0 else ""
@@ -322,26 +319,29 @@ def build_email_html(data: dict, analysis: str, news: dict, update_num: int) -> 
 
     return html, plain
 
-# ─── 5. ENVIAR EMAIL ─────────────────────────────────────────────────────────
+# ─── 5. ENVIAR EMAIL (multiples destinatarios) ───────────────────────────────
 def send_email(html: str, plain: str, update_num: int):
     cfg = CONFIG
-    if not all([cfg.get("EMAIL_FROM"), cfg.get("EMAIL_TO"), cfg.get("SMTP_PASSWORD")]):
+    recipients = get_recipients()
+
+    if not all([cfg.get("EMAIL_FROM"), recipients, cfg.get("SMTP_PASSWORD")]):
         log.warning("[WARN] Email no configurado. Revisa config.py")
         return
 
     subject = f"Stock Agent #{update_num}/20 — {datetime.now().strftime('%H:%M')} | DOW & S&P500 + Noticias"
-    msg = MIMEMultipart("alternative")
-    msg["Subject"] = subject
-    msg["From"]    = cfg["EMAIL_FROM"]
-    msg["To"]      = cfg["EMAIL_TO"]
-    msg.attach(MIMEText(plain, "plain", "utf-8"))
-    msg.attach(MIMEText(html,  "html",  "utf-8"))
 
     try:
         with smtplib.SMTP_SSL(cfg["SMTP_HOST"], cfg["SMTP_PORT"]) as server:
             server.login(cfg["EMAIL_FROM"], cfg["SMTP_PASSWORD"])
-            server.sendmail(cfg["EMAIL_FROM"], cfg["EMAIL_TO"], msg.as_string())
-        log.info(f"[OK] Email #{update_num} enviado a {cfg['EMAIL_TO']}")
+            for recipient in recipients:
+                msg = MIMEMultipart("alternative")
+                msg["Subject"] = subject
+                msg["From"]    = cfg["EMAIL_FROM"]
+                msg["To"]      = recipient
+                msg.attach(MIMEText(plain, "plain", "utf-8"))
+                msg.attach(MIMEText(html,  "html",  "utf-8"))
+                server.sendmail(cfg["EMAIL_FROM"], recipient, msg.as_string())
+                log.info(f"[OK] Email #{update_num} enviado a {recipient}")
     except Exception as e:
         log.error(f"[ERROR] Error enviando email: {e}")
 

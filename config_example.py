@@ -1,10 +1,8 @@
 # -*- coding: utf-8 -*-
 """
 Configuracion — Stock Agent
-INSTRUCCIONES:
-1. Copia este archivo y renombralo a config.py
-2. Rellena cada campo con tus datos reales
-3. NUNCA subas config.py a GitHub (ya esta en .gitignore)
+IMPORTANTE: Renombra este archivo a config.py y rellena con tus datos reales.
+NO subas config.py a GitHub — ya esta en .gitignore
 """
 
 CONFIG = {
@@ -13,15 +11,12 @@ CONFIG = {
     "GROQ_API_KEY": "gsk_TU_KEY_AQUI",
 
     # ── Email de envio ────────────────────────────────────────────────────────
-    # Correo Gmail desde donde se envia
-    "EMAIL_FROM":    "tu_correo@gmail.com",
-    # Correo donde quieres recibir las actualizaciones
-    "EMAIL_TO":      "correo_destino@gmail.com",
-    # Contraseña de aplicacion Gmail (no tu contraseña normal)
-    # Guia: myaccount.google.com > Seguridad > Contraseñas de aplicacion
-    "SMTP_PASSWORD": "xxxx xxxx xxxx xxxx",
+    "EMAIL_FROM":    "tu_correo@gmail.com",       # correo Gmail que envia
+    "EMAIL_TO":      ["destino1@gmail.com",        # lista de correos destino
+                      "destino2@gmail.com"],        # agrega o quita correos aqui
+    "SMTP_PASSWORD": "xxxx xxxx xxxx xxxx",        # contraseña de app Gmail (16 chars)
 
-    # ── Servidor SMTP ─────────────────────────────────────────────────────────
+    # ── Servidor SMTP Gmail ───────────────────────────────────────────────────
     "SMTP_HOST": "smtp.gmail.com",
     "SMTP_PORT": 465,
 }
