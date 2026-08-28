@@ -1,0 +1,70 @@
+name: Stock Agent — 20 actualizaciones diarias
+
+on:
+  schedule:
+    # 20 ejecuciones diarias en UTC (Lima = UTC-5, suma 5 horas)
+    - cron: '0 11 * * 1-5'   # 06:00 Lima
+    - cron: '12 12 * * 1-5'  # 07:12 Lima
+    - cron: '24 13 * * 1-5'  # 08:24 Lima
+    - cron: '30 14 * * 1-5'  # 09:30 Lima
+    - cron: '36 14 * * 1-5'  # 09:36 Lima
+    - cron: '48 15 * * 1-5'  # 10:48 Lima
+    - cron: '0 16 * * 1-5'   # 11:00 Lima
+    - cron: '0 17 * * 1-5'   # 12:00 Lima
+    - cron: '12 18 * * 1-5'  # 13:12 Lima
+    - cron: '0 19 * * 1-5'   # 14:00 Lima
+    - cron: '24 19 * * 1-5'  # 14:24 Lima
+    - cron: '36 20 * * 1-5'  # 15:36 Lima
+    - cron: '0 21 * * 1-5'   # 16:00 Lima
+    - cron: '48 21 * * 1-5'  # 16:48 Lima
+    - cron: '0 23 * * 1-5'   # 18:00 Lima
+    - cron: '12 0 * * 2-6'   # 19:12 Lima
+    - cron: '24 1 * * 2-6'   # 20:24 Lima
+    - cron: '0 2 * * 2-6'    # 21:00 Lima
+    - cron: '36 2 * * 2-6'   # 21:36 Lima
+    - cron: '48 3 * * 2-6'   # 22:48 Lima
+  workflow_dispatch:          # Permite ejecucion manual desde GitHub
+
+jobs:
+  run-stock-agent:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Clonar repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Instalar dependencias
+        run: pip install yfinance schedule groq feedparser
+
+      - name: Crear config.py desde secrets
+        run: |
+          cat > config.py << CONFIGEOF
+          # -*- coding: utf-8 -*-
+          CONFIG = {
+              "GROQ_API_KEY":   "${{ secrets.GROQ_API_KEY }}",
+              "EMAIL_FROM":     "${{ secrets.EMAIL_FROM }}",
+              "EMAIL_TO":       ["${{ secrets.EMAIL_TO_1 }}", "${{ secrets.EMAIL_TO_2 }}"],
+              "SMTP_PASSWORD":  "${{ secrets.SMTP_PASSWORD }}",
+              "SMTP_HOST":      "smtp.gmail.com",
+              "SMTP_PORT":      465,
+          }
+          CONFIGEOF
+
+      - name: Ejecutar Stock Agent (una actualizacion)
+        run: python -c "
+          from stock_agent import fetch_market_data, fetch_all_news, generate_ai_analysis, build_email_html, send_email
+          import os
+          data = fetch_market_data()
+          news = fetch_all_news()
+          analysis = generate_ai_analysis(data, news)
+          html, plain = build_email_html(data, analysis, news, int(os.environ.get('GITHUB_RUN_NUMBER', 1)))
+          send_email(html, plain, int(os.environ.get('GITHUB_RUN_NUMBER', 1)))
+          print('Actualizacion completada exitosamente')
+        "
