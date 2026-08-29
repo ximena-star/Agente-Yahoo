@@ -29,24 +29,34 @@ jobs:
           python-version: '3.11'
 
       - name: Instalar dependencias
-       run: pip install yfinance groq feedparser schedule
-       
+        run: pip install yfinance groq feedparser schedule
+
       - name: Crear config.py
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
+          EMAIL_TO_1: ${{ secrets.EMAIL_TO_1 }}
+          EMAIL_TO_2: ${{ secrets.EMAIL_TO_2 }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
         run: |
-          cat > config.py << CONFIGEOF
-          CONFIG = {
-              "GROQ_API_KEY":  "${{ secrets.GROQ_API_KEY }}",
-              "EMAIL_FROM":    "${{ secrets.EMAIL_FROM }}",
-              "EMAIL_TO":      ["${{ secrets.EMAIL_TO_1 }}", "${{ secrets.EMAIL_TO_2 }}"],
-              "SMTP_PASSWORD": "${{ secrets.SMTP_PASSWORD }}",
+          python - <<PYEOF
+          import os
+          content = f"""CONFIG = {{
+              "GROQ_API_KEY":  "{os.environ['GROQ_API_KEY']}",
+              "EMAIL_FROM":    "{os.environ['EMAIL_FROM']}",
+              "EMAIL_TO":      ["{os.environ['EMAIL_TO_1']}", "{os.environ['EMAIL_TO_2']}"],
+              "SMTP_PASSWORD": "{os.environ['SMTP_PASSWORD']}",
               "SMTP_HOST":     "smtp.gmail.com",
               "SMTP_PORT":     465,
-          }
-          CONFIGEOF
+          }}"""
+          with open("config.py", "w") as f:
+              f.write(content)
+          print("config.py creado OK")
+          PYEOF
 
       - name: Ejecutar Stock Agent
         run: |
-          python - << PYEOF
+          python - <<PYEOF
           from stock_agent import fetch_market_data, fetch_all_news, generate_ai_analysis, build_email_html, send_email
           import os
           n = int(os.environ.get('GITHUB_RUN_NUMBER', 1))
@@ -55,5 +65,5 @@ jobs:
           analysis = generate_ai_analysis(data, news)
           html, plain = build_email_html(data, analysis, news, n)
           send_email(html, plain, n)
-          print(f'Update #{n} completado')
+          print(f'Update completado')
           PYEOF
