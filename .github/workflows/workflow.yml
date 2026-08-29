@@ -29,8 +29,8 @@ jobs:
           python-version: '3.11'
 
       - name: Instalar dependencias
-        run: pip install yfinance groq feedparser
-
+       run: pip install yfinance groq feedparser schedule
+       
       - name: Crear config.py
         run: |
           cat > config.py << CONFIGEOF
